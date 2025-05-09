@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <string.h>
+
 
 
 
@@ -10,7 +12,7 @@ uint64_t c = 1767567;
 uint64_t d = 128;
 uint64_t a = (128+1) % 4;
 uint64_t N = 1875814;
-uint64_t x_one = 18967381;
+uint64_t x_one = 0xFFFFFFFF;
 
 
 void nkg(uint64_t* key, uint64_t* end){
@@ -24,10 +26,27 @@ void nkg(uint64_t* key, uint64_t* end){
 
 
 
-// void gammirovanie(char* text, char* text_end, uint64_t* KEY, uint64_t* KEY_end){
+void gammirovanie(char* text, char* text_end, void* KEY, void* KEY_end, size_t elem_sz){
+        char *p_st = (char*) KEY;
+        char *p_end = (char*) KEY_end;
+        
+        char * key_buf = malloc(elem_sz);
+        if(!key_buf){return;}
 
 
-// }
+    for(; p_st < p_end; p_st+=elem_sz){
+
+        memcpy(key_buf, p_st, elem_sz);
+
+        for(int i = 0; (i < elem_sz) && (text < text_end); text++, i++)
+        {
+            *text ^= key_buf[i];              
+        }
+                      
+    }
+    
+    free(key_buf);
+}
 
 
 int main(void){
@@ -40,28 +59,42 @@ int main(void){
     FILE* ftext = fopen(filetext, "r");
     FILE* fshifr = fopen(fileshifrtext, "w");
     FILE* fkey = fopen(filekey, "w");
+    FILE* fdeshifr = fopen(filedeshifrtext, "w");
 
-    char BUFFER[256];
+    unsigned char BUFFER[256];
     uint64_t KEY[32];
 
     KEY[0] = x_one;
 
-    if(!ftext || !fshifr || !fkey){ goto EXIT;}
+    if(!ftext){ 
+        fclose(fshifr);
+        fclose(fkey);
+    }
     else{
-        size_t bytes_read;
         while(fread(BUFFER, sizeof(char), 256, ftext)){
             nkg(KEY, KEY+32);
 
             fwrite(KEY, sizeof(uint64_t), 32, fkey);
             
-            for(int i = 0,  j = 0; i < 32; i++, j+=8){
-                BUFFER[j] ^= KEY[i];                
-            }
+            gammirovanie(BUFFER, BUFFER+256, KEY, KEY+32, sizeof(*KEY));
 
             fwrite(BUFFER, 1, 256, fshifr);
             *KEY = *KEY+31;
         }
     }
+    fclose(fkey);
+    fclose(fshifr);
+    char KEY_BUF[256];
+    fkey = fopen(filekey, "r");
+    fshifr = fopen(fileshifrtext, "r");
+    if(fkey){
+        while (fread(BUFFER, sizeof(char), 256, fshifr) && fread(KEY_BUF, sizeof(char), 256, fkey))
+        {
+            gammirovanie(BUFFER, BUFFER+256, KEY_BUF, KEY_BUF+256, sizeof(char));
+            fwrite(BUFFER, 1, 256, fdeshifr);
+        }
+    }
+
 
 
 
@@ -75,6 +108,5 @@ int main(void){
     fclose(fkey);
   
 
-    EXIT:
-        return 0;
+
 }
